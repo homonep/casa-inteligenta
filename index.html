@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panou Control Smart IoT</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; padding: 15px; margin: 0; text-align: center; }
+    h1 { color: #38bdf8; margin-bottom: 20px; font-size: 24px; }
+    .card { background: #1e293b; border-radius: 12px; padding: 18px; margin: 12px auto; max-width: 420px; box-shadow: 0 4px 10px rgba(0,0,0,0.4); text-align: left; }
+    .card h2 { color: #38bdf8; margin-top: 0; font-size: 18px; border-bottom: 1px solid #334155; padding-bottom: 8px; }
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .stat-box { background: #0f172a; padding: 12px; border-radius: 8px; text-align: center; }
+    .stat-title { font-size: 12px; color: #94a3b8; }
+    .stat-val { font-size: 20px; font-weight: bold; color: #4ade80; margin-top: 5px; }
+    .btn { background: #0284c7; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 8px; transition: 0.2s; }
+    .btn:active { transform: scale(0.98); }
+    .btn-off { background: #475569; color: #cbd5e1; }
+    .btn-auto { background: #8b5cf6; }
+    .input-group { display: flex; gap: 10px; margin-top: 10px; }
+    input[type="number"], input[type="text"] { background: #0f172a; color: white; border: 1px solid #334155; padding: 10px; border-radius: 8px; font-size: 16px; width: 100%; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <h1>Control Sistem Smart IoT</h1>
+
+  <!-- Conexiune IP -->
+  <div class="card">
+    <h2>1. Conexiune ESP8266</h2>
+    <input type="text" id="ipAddress" value="192.168.1.150" placeholder="Introduceți IP-ul ESP8266">
+  </div>
+
+  <!-- Senzori -->
+  <div class="card">
+    <h2>2. Monitorizare Senzori</h2>
+    <div class="stat-grid">
+      <div class="stat-box">
+        <div class="stat-title">TEMPERATURĂ</div>
+        <div id="valTemp" class="stat-val">-- °C</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-title">UMIDITATE</div>
+        <div id="valHum" class="stat-val">-- %</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-title">SENZOR FUM</div>
+        <div id="valSmoke" class="stat-val">--</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-title">SENZOR APĂ</div>
+        <div id="valWater" class="stat-val">--</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Selectare Mod -->
+  <div class="card">
+    <h2>3. Mod Operare</h2>
+    <button id="btnModeAuto" class="btn btn-auto" onclick="setMode(0)">Mod AUTOMAT (Activ)</button>
+    <button id="btnModeManual" class="btn btn-off" onclick="setMode(1)">Mod MANUAL</button>
+  </div>
+
+  <!-- Setare Pragu Temperatură (Automat) -->
+  <div class="card">
+    <h2>4. Prag Temperatură (Mod Automat)</h2>
+    <p style="font-size: 13px; color: #94a3b8; margin-top: 0;">Ventilatoarele pornesc automat peste această temperatură:</p>
+    <div class="input-group">
+      <input type="number" id="tempSetpoint" value="28.0" step="0.5">
+      <button class="btn" style="width: 50%; margin-top: 0;" onclick="updateSetpoint()">Salvează</button>
+    </div>
+  </div>
+
+  <!-- Comenzi Manuale -->
+  <div class="card">
+    <h2>5. Control Manual Componente</h2>
+    <button id="btnFan" class="btn btn-off" onclick="toggleDevice('fan')">Ventilatoare: OPRIT</button>
+    <button id="btnPump" class="btn btn-off" onclick="toggleDevice('pump')">Pompă Apă: OPRITĂ</button>
+    <button id="btnServo" class="btn btn-off" onclick="toggleDevice('servo')">Geam (Servo): ÎNCHIS</button>
+  </div>
+
+  <script>
+    let state = { mode: 0, fan: 0, pump: 0, servo: 0 };
+
+    function getIp() {
+      return document.getElementById("ipAddress").value.trim();
+    }
+
+    function setMode(modeVal) {
+      state.mode = modeVal;
+      document.getElementById("btnModeAuto").className = modeVal === 0 ? "btn btn-auto" : "btn btn-off";
+      document.getElementById("btnModeAuto").innerText = modeVal === 0 ? "Mod AUTOMAT (Activ)" : "Mod AUTOMAT";
+      document.getElementById("btnModeManual").className = modeVal === 1 ? "btn" : "btn btn-off";
+      document.getElementById("btnModeManual").innerText = modeVal === 1 ? "Mod MANUAL (Activ)" : "Mod MANUAL";
+      fetch(`http://${getIp()}/api?mode=${modeVal}`);
+    }
+
+    function updateSetpoint() {
+      let temp = document.getElementById("tempSetpoint").value;
+      fetch(`http://${getIp()}/api?temp=${temp}`);
+      alert("Prag salvat: " + temp + " °C");
+    }
+
+    function toggleDevice(dev) {
+      state[dev] = state[dev] === 1 ? 0 : 1;
+      let btn = document.getElementById(`btn${dev.charAt(0).toUpperCase() + dev.slice(1)}`);
+      
+      if (dev === 'fan') {
+        btn.innerText = state.fan === 1 ? "Ventilatoare: PORNIT" : "Ventilatoare: OPRIT";
+      } else if (dev === 'pump') {
+        btn.innerText = state.pump === 1 ? "Pompă Apă: PORNITĂ" : "Pompă Apă: OPRITĂ";
+      } else if (dev === 'servo') {
+        btn.innerText = state.servo === 1 ? "Geam (Servo): DESCHIS (90°)" : "Geam (Servo): ÎNCHIS (0°)";
+      }
+
+      btn.className = state[dev] === 1 ? "btn" : "btn btn-off";
+      fetch(`http://${getIp()}/api?${dev}=${state[dev]}`);
+    }
+
+    // Interogare continuă stări senzori (la fiecare 2 secunde)
+    setInterval(() => {
+      let ip = getIp();
+      if (!ip) return;
+
+      fetch(`http://${ip}/status`)
+        .then(res => res.text())
+        .then(data => {
+          let parts = data.split(',');
+          if (parts.length >= 8) {
+            document.getElementById("valTemp").innerText = parts[0] + " °C";
+            document.getElementById("valHum").innerText = parts[1] + " %";
+            document.getElementById("valSmoke").innerText = parts[2] === "0" ? "DETECTAT!" : "OK";
+            document.getElementById("valWater").innerText = parts[3];
+          }
+        })
+        .catch(err => console.log("Așteptare conexiune ESP8266..."));
+    }, 2000);
+  </script>
+</body>
+</html>
